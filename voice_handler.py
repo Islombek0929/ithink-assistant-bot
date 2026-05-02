@@ -96,11 +96,25 @@ async def handle_voice(message: Message, bot):
         reply_text = ""
 
         async with client.aio.live.connect(model=MODEL, config=config) as session:
-            await session.send_realtime_input(
-                audio=types.Blob(
-                    mime_type="audio/pcm;rate=16000",
-                    data=pcm_bytes
-                )
+            # await session.send_realtime_input(
+            #     audio=types.Blob(
+            #         mime_type="audio/pcm;rate=16000",
+            #         data=pcm_bytes
+            #     )
+            # )
+
+            await session.send(
+                input=types.LiveClientInput(
+                    realtime_input=types.LiveClientRealtimeInput(
+                        media_chunks=[
+                            types.Blob(
+                                mime_type="audio/pcm;rate=16000",
+                                data=pcm_bytes
+                            )
+                        ]
+                    )
+                ),
+                end_of_turn=True
             )
 
             async for response in session.receive():
