@@ -19,12 +19,25 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+OWNER_ID = int(os.getenv("YOUR_CHAT_ID"))
 
 bot = Bot(
     token=BOT_TOKEN,
     default=DefaultBotProperties(parse_mode=ParseMode.HTML)
 )
 dp = Dispatcher()
+
+
+# ─────────────────────────────────────────
+# 🔒 FAQAT OWNER — boshqa hech kim kirolmaydi
+# ─────────────────────────────────────────
+@dp.message.outer_middleware()
+async def owner_only_middleware(handler, message: Message, data: dict):
+    if message.from_user.id != OWNER_ID:
+        await message.answer("⛔ Sizda bu botdan foydalanish huquqi yoq.")
+        logger.warning(f"Ruxsatsiz kirish: {message.from_user.id} (@{message.from_user.username})")
+        return
+    return await handler(message, data)
 
 
 @dp.message(F.voice)
