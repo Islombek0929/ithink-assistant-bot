@@ -12,7 +12,7 @@ load_dotenv()
 
 # google-genai==1.74.0 — yangi Client sintaksisi
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
-MODEL = "gemini-2.0-flash-live-preview"
+MODEL = os.getenv("GEMINI_MODEL")
 
 SYSTEM_PROMPT = (
     "Siz O'zbek tilida gaplashadigan foydali AI assistantsiz. "
