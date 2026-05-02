@@ -8,7 +8,7 @@ from google.genai import types
 from aiogram.types import Message, BufferedInputFile
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path='env.example')
+load_dotenv()
 
 # google-genai==1.74.0 — yangi Client sintaksisi
 client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))

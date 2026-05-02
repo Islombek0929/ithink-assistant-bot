@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 from voice_handler import handle_voice
 from notion_handler import add_task, list_tasks, complete_task, send_overdue_tasks
 
-load_dotenv(dotenv_path='env.example')
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

@@ -3,7 +3,7 @@ import httpx
 from datetime import date
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path='env.example')
+load_dotenv()
 
 NOTION_API_KEY = os.getenv("NOTION_API_KEY")
 NOTION_VERSION = "2022-06-28"
