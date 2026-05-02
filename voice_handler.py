@@ -1,15 +1,12 @@
 import os
 import asyncio
-import base64
 import tempfile
-import wave
-import struct
+import subprocess
 
 from google import genai
 from google.genai import types
 from aiogram.types import Message, BufferedInputFile
 from dotenv import load_dotenv
-from pydub import AudioSegment
 
 load_dotenv()
 
@@ -26,10 +23,39 @@ SYSTEM_PROMPT = (
 
 
 def ogg_to_pcm(ogg_path: str) -> bytes:
-    """OGG faylni PCM (16kHz, 16bit, mono) ga o'girish"""
-    audio = AudioSegment.from_ogg(ogg_path)
-    audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
-    return audio.raw_data
+    """ffmpeg orqali OGG → PCM (16kHz, 16bit, mono)"""
+    result = subprocess.run(
+        [
+            "ffmpeg", "-i", ogg_path,
+            "-ar", "16000",   # 16kHz
+            "-ac", "1",        # mono
+            "-f", "s16le",     # 16bit little-endian PCM
+            "-"                # stdout ga chiqar
+        ],
+        capture_output=True,
+        check=True
+    )
+    return result.stdout
+
+
+def pcm_to_ogg(pcm_bytes: bytes) -> bytes:
+    """ffmpeg orqali PCM → OGG opus (Telegram uchun)"""
+    result = subprocess.run(
+        [
+            "ffmpeg",
+            "-f", "s16le",
+            "-ar", "24000",
+            "-ac", "1",
+            "-i", "pipe:0",
+            "-c:a", "libopus",
+            "-f", "ogg",
+            "pipe:1"
+        ],
+        input=pcm_bytes,
+        capture_output=True,
+        check=True
+    )
+    return result.stdout
 
 
 async def handle_voice(message: Message, bot):
@@ -44,7 +70,7 @@ async def handle_voice(message: Message, bot):
             await bot.download_file(file.file_path, tmp.name)
             ogg_path = tmp.name
 
-        # ── 2. OGG → PCM convert ──
+        # ── 2. OGG → PCM ──
         await processing_msg.edit_text("🔄 Audio tayyorlanmoqda...")
         pcm_bytes = await asyncio.to_thread(ogg_to_pcm, ogg_path)
         os.unlink(ogg_path)
@@ -70,7 +96,6 @@ async def handle_voice(message: Message, bot):
         reply_text = ""
 
         async with client.aio.live.connect(model=MODEL, config=config) as session:
-            # PCM audio yuborish
             await session.send_realtime_input(
                 audio=types.Blob(
                     mime_type="audio/pcm;rate=16000",
@@ -78,7 +103,6 @@ async def handle_voice(message: Message, bot):
                 )
             )
 
-            # Javobni olish
             async for response in session.receive():
                 if hasattr(response, 'data') and response.data:
                     reply_audio.extend(response.data)
@@ -96,20 +120,7 @@ async def handle_voice(message: Message, bot):
             await message.answer(f"🤖 <b>Gemini:</b> {reply_text}")
 
         if reply_audio:
-            # PCM → OGG ga o'girish (Telegram uchun)
-            reply_pcm = bytes(reply_audio)
-            reply_segment = AudioSegment(
-                data=reply_pcm,
-                sample_width=2,
-                frame_rate=24000,
-                channels=1
-            )
-            with tempfile.NamedTemporaryFile(suffix=".ogg", delete=False) as out_tmp:
-                reply_segment.export(out_tmp.name, format="ogg", codec="libopus")
-                with open(out_tmp.name, "rb") as f:
-                    ogg_out = f.read()
-                os.unlink(out_tmp.name)
-
+            ogg_out = await asyncio.to_thread(pcm_to_ogg, bytes(reply_audio))
             audio_file = BufferedInputFile(ogg_out, filename="response.ogg")
             await message.answer_voice(audio_file)
         else:

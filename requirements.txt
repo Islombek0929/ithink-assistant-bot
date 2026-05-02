@@ -2,4 +2,3 @@ aiogram
 google-genai
 httpx
 python-dotenv
-pydub
