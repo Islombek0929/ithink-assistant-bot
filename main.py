@@ -1,49 +1,46 @@
 import asyncio
 import logging
 import os
+import datetime
+
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Message
 from aiogram.filters import Command
+from aiogram.client.default import DefaultBotProperties
+from aiogram.enums import ParseMode
 from dotenv import load_dotenv
 
 from voice_handler import handle_voice
-from notion_handler import (
-    add_task, list_tasks, complete_task,
-    send_overdue_tasks
-)
+from notion_handler import add_task, list_tasks, complete_task, send_overdue_tasks
 
-load_dotenv()
+load_dotenv(dotenv_path='env.example')
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
-bot = Bot(token=BOT_TOKEN)
+bot = Bot(
+    token=BOT_TOKEN,
+    default=DefaultBotProperties(parse_mode=ParseMode.HTML)
+)
 dp = Dispatcher()
 
 
-# ─────────────────────────────────────────
-# 🎙️ OVOZLI XABAR — Whisper + Gemini + TTS
-# ─────────────────────────────────────────
 @dp.message(F.voice)
 async def voice_message_handler(message: Message):
     await handle_voice(message, bot)
 
 
-# ─────────────────────────────────────────
-# 📋 NOTION — Vazifa qo'shish
-# /addtask [ish|shaxsiy] Vazifa nomi
-# ─────────────────────────────────────────
 @dp.message(Command("addtask"))
 async def add_task_handler(message: Message):
     args = message.text.split(maxsplit=2)
     if len(args) < 3:
         await message.answer(
-            "📝 Format:\n"
-            "/addtask ish Vazifa nomi\n"
-            "/addtask shaxsiy Vazifa nomi\n\n"
-            "Misol: /addtask ish IT Infra variant tahlili"
+            "📝 <b>Format:</b>\n"
+            "<code>/addtask ish Vazifa nomi</code>\n"
+            "<code>/addtask shaxsiy Vazifa nomi</code>\n\n"
+            "Misol: <code>/addtask ish IT Infra variant tahlili</code>"
         )
         return
 
@@ -51,7 +48,7 @@ async def add_task_handler(message: Message):
     task_name = args[2]
 
     if db_type not in ["ish", "shaxsiy"]:
-        await message.answer("❌ Faqat 'ish' yoki 'shaxsiy' deb yozing!")
+        await message.answer("❌ Faqat <code>ish</code> yoki <code>shaxsiy</code> deb yozing!")
         return
 
     await message.answer("⏳ Qo'shilmoqda...")
@@ -59,17 +56,14 @@ async def add_task_handler(message: Message):
 
     if result:
         await message.answer(
-            f"✅ Vazifa qo'shildi!\n\n💼 *{task_name}*\n📂 {db_type.capitalize()} vazifalar",
-            parse_mode="Markdown"
+            f"✅ Vazifa qo'shildi!\n\n"
+            f"💼 <b>{task_name}</b>\n"
+            f"📂 {db_type.capitalize()} vazifalar"
         )
     else:
         await message.answer("❌ Xatolik yuz berdi. Qayta urinib ko'ring.")
 
 
-# ─────────────────────────────────────────
-# 📋 NOTION — Vazifalarni ko'rish
-# /tasks [ish|shaxsiy] [bugun|ertaga|hammasi]
-# ─────────────────────────────────────────
 @dp.message(Command("tasks"))
 async def list_tasks_handler(message: Message):
     args = message.text.split()
@@ -81,18 +75,14 @@ async def list_tasks_handler(message: Message):
 
     await message.answer("⏳ Notion'dan yuklanmoqda...")
     tasks_text = await list_tasks(db_type, filter_type)
-    await message.answer(tasks_text, parse_mode="Markdown")
+    await message.answer(tasks_text)
 
 
-# ─────────────────────────────────────────
-# ✅ NOTION — Vazifani bajarildi qilish
-# /done vazifa_nomi
-# ─────────────────────────────────────────
 @dp.message(Command("done"))
 async def done_task_handler(message: Message):
     args = message.text.split(maxsplit=1)
     if len(args) < 2:
-        await message.answer("✅ Format: /done Vazifa nomi (yoki qismi)")
+        await message.answer("✅ <b>Format:</b> <code>/done Vazifa nomi</code> (yoki qismi)")
         return
 
     task_name = args[1]
@@ -100,71 +90,56 @@ async def done_task_handler(message: Message):
     result = await complete_task(task_name)
 
     if result:
-        await message.answer(f"✅ Bajarildi deb belgilandi!\n\n*{result}*", parse_mode="Markdown")
+        await message.answer(f"✅ Bajarildi deb belgilandi!\n\n<b>{result}</b>")
     else:
         await message.answer("❌ Vazifa topilmadi. Nomni tekshiring.")
 
 
-# ─────────────────────────────────────────
-# 📊 Bugungi hisobot
-# ─────────────────────────────────────────
 @dp.message(Command("today"))
 async def today_handler(message: Message):
     await message.answer("📊 Bugungi vazifalar yuklanmoqda...")
     ish = await list_tasks("ish", "bugun")
     shaxsiy = await list_tasks("shaxsiy", "bugun")
-    await message.answer(
-        f"💼 *ISH:*\n{ish}\n\n🌿 *SHAXSIY:*\n{shaxsiy}",
-        parse_mode="Markdown"
-    )
+    await message.answer(f"💼 <b>ISH:</b>\n{ish}\n\n🌿 <b>SHAXSIY:</b>\n{shaxsiy}")
 
 
-# ─────────────────────────────────────────
-# ❓ START va HELP
-# ─────────────────────────────────────────
 @dp.message(Command("start"))
 async def start_handler(message: Message):
     await message.answer(
         "👋 Salom! Men sizning shaxsiy AI assistantingizman.\n\n"
-        "🎙️ *Ovozli xabar* yuboring — Gemini AI O'zbek tilida javob beradi\n\n"
-        "📋 *Notion buyruqlari:*\n"
+        "🎙️ <b>Ovozli xabar</b> yuboring — Gemini AI O'zbek tilida javob beradi\n\n"
+        "📋 <b>Notion buyruqlari:</b>\n"
         "/addtask ish [vazifa] — Ish vazifasi qo'shish\n"
         "/addtask shaxsiy [vazifa] — Shaxsiy vazifa qo'shish\n"
         "/tasks ish bugun — Bugungi ish vazifalari\n"
         "/tasks shaxsiy hammasi — Barcha shaxsiy vazifalar\n"
         "/done [vazifa nomi] — Vazifani bajarildi qilish\n"
         "/today — Bugungi to'liq hisobot\n"
-        "/help — Barcha buyruqlar",
-        parse_mode="Markdown"
+        "/help — Barcha buyruqlar"
     )
 
 
 @dp.message(Command("help"))
 async def help_handler(message: Message):
     await message.answer(
-        "📖 *Barcha buyruqlar:*\n\n"
-        "🎙️ *Ovoz:*\n"
+        "📖 <b>Barcha buyruqlar:</b>\n\n"
+        "🎙️ <b>Ovoz:</b>\n"
         "• Ovozli xabar yuboring — Gemini AI javob beradi\n\n"
-        "📋 *Notion:*\n"
-        "• /addtask ish [nom] — Ish vazifasi qo'shish\n"
-        "• /addtask shaxsiy [nom] — Shaxsiy vazifa qo'shish\n"
-        "• /tasks ish bugun — Bugungi ish vazifalari\n"
-        "• /tasks ish ertaga — Ertangi ish vazifalari\n"
-        "• /tasks shaxsiy hammasi — Barcha shaxsiy vazifalar\n"
-        "• /done [vazifa nomi] — Bajarildi deb belgilash\n"
-        "• /today — Bugungi to'liq hisobot\n\n"
-        "⚙️ *Boshqa:*\n"
+        "📋 <b>Notion:</b>\n"
+        "• /addtask ish [nom]\n"
+        "• /addtask shaxsiy [nom]\n"
+        "• /tasks ish bugun\n"
+        "• /tasks ish ertaga\n"
+        "• /tasks shaxsiy hammasi\n"
+        "• /done [vazifa nomi]\n"
+        "• /today\n\n"
+        "⚙️ <b>Boshqa:</b>\n"
         "• /start — Boshlash\n"
-        "• /help — Yordam",
-        parse_mode="Markdown"
+        "• /help — Yordam"
     )
 
 
-# ─────────────────────────────────────────
-# ⏰ SCHEDULER — Har kuni ertalab 9:00 da
-# ─────────────────────────────────────────
 async def daily_scheduler():
-    import datetime
     CHAT_ID = os.getenv("YOUR_CHAT_ID")
 
     while True:
@@ -181,22 +156,19 @@ async def daily_scheduler():
             shaxsiy = await list_tasks("shaxsiy", "bugun")
             overdue = await send_overdue_tasks()
 
-            text = "☀️ *Xayrli tong! Bugungi reja:*\n\n"
-            text += f"💼 *ISH:*\n{ish}\n\n"
-            text += f"🌿 *SHAXSIY:*\n{shaxsiy}"
+            text = "☀️ <b>Xayrli tong! Bugungi reja:</b>\n\n"
+            text += f"💼 <b>ISH:</b>\n{ish}\n\n"
+            text += f"🌿 <b>SHAXSIY:</b>\n{shaxsiy}"
             if overdue:
-                text += f"\n\n⚠️ *Muddati o'tgan:*\n{overdue}"
+                text += f"\n\n⚠️ <b>Muddati o'tgan:</b>\n{overdue}"
 
-            await bot.send_message(CHAT_ID, text, parse_mode="Markdown")
+            await bot.send_message(CHAT_ID, text)
         except Exception as e:
             logger.error(f"Scheduler xatosi: {e}")
 
 
-# ─────────────────────────────────────────
-# 🚀 BOT ISHGA TUSHIRISH
-# ─────────────────────────────────────────
 async def main():
-    logger.info("Bot ishga tushmoqda... (Gemini 2.0 Flash)")
+    logger.info("Bot ishga tushmoqda... (Gemini 2.0 Flash Live Preview)")
     await asyncio.gather(
         dp.start_polling(bot),
         daily_scheduler()
